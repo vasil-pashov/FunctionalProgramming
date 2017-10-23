@@ -5,7 +5,7 @@
     (if (null? l)
         acc
         (let([head (car l)] [tail (cdr l)])
-          (if (pair? head)
+          (if (list? head)
               (flatten* tail (flatten* head acc))
               (flatten* tail (cons head acc))))))
   (reverse (flatten* l '())))

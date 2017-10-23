@@ -5,7 +5,7 @@
   (define (pack_sequence l acc current)
     (cond
       [(null? l) (cons acc '())]
-      [(eq? (car l) current) (pack_sequence (cdr l) (cons (car l) acc) current)]
+      [(equal? (car l) current) (pack_sequence (cdr l) (cons (car l) acc) current)]
       [(cons acc l)]
     ))
   (define (pack* l acc)
