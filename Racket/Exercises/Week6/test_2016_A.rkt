@@ -14,7 +14,7 @@
       (op a (accumulate op nv (next a) b next))))
 
 (define (count a b p?)
-  (accumulate (lambda(x acc)(if (p? x) (+ 1 acc) acc))0 a b 1+))
+  (accumulate (lambda(x acc)(if (p? x) (+ 1 acc) acc)) 0 a b 1+))
 
 (define (meetTwice? f g a b)
   (> (count a b (lambda(x)(= (f x) (g x)))) 1))
@@ -69,14 +69,13 @@
 
 (define (descending l)
   (define (descending* l res)
-    (if (> (car l) (car res))
-        (reverse res)
-        (descending* (cdr l) (cons (car l) res))))
+    (cond
+      ((null? l) (reverse res))
+      ((> (car l) (car res)) (reverse res))
+      (else (descending* (cdr l) (cons (car l) res)))))
   (descending* (cdr l) (list (car l))))
 
 (define (longest-descending l)
   (define (choose lst1 lst2)
     (if (> (length lst2) (length lst1)) lst2 lst1))
   (foldr (lambda(idx res)(choose (descending (drop l idx)) res)) '() (range (length l))))
-
-
