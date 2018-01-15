@@ -1,4 +1,6 @@
-type Vec = (Double, Double)
+divides :: Integral t => t -> t -> Bool
+divides x y = (y `mod` x) == 0
 
-addVectors :: Vec -> Vec -> Vec
-addVectors (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
+eratostenesPrimes :: Integral t => [t]
+eratostenesPrimes = helper [2..]
+  where helper (x:xs) = x:helper (filter (not . (x `divides`)) xs)
