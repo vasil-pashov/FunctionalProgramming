@@ -17,7 +17,7 @@ program = [
 	(Disjunct [Positive "p" [Const "1", Const "2"]]),
 	(Disjunct [Positive "p" [Var "X", Var "Y"], Negative "q" [Var "X"], Negative "r" [Var "Y"]]),
 	(Disjunct [Positive "q" [Const "10"]]),
-	(Disjunct [Positive "q" [Var "Y"], Negative "t" [Var "Y"], Negative "r" [Const "11"]]),
+	(Disjunct [Positive "q" [Var "YY"], Negative "t" [Var "YY"], Negative "r" [Const "11"]]),
 	(Disjunct [Positive "r" [Const "11"]]),
 	(Disjunct [Positive "t" [Const "5"]])]
 
@@ -36,21 +36,6 @@ equalSet x y
 	| otherwise            = all (`elem` y) x
 
 
--- resolve [] _        = []
--- resolve (d:ds) goal = handleOpposites opposites ++ (resolve ds goal)
--- 	where
--- 		opposites       = goal `pairOpposites` d
--- 		handleOpposites []                           = []
--- 		handleOpposites ((fromGoal, fromProgram):ps) = handleUnification unificator
--- 			where
--- 				unificator = fromProgram `unify` fromGoal
--- 				handleUnification Nothing = handleOpposites ps
--- 				handleUnification (Just (_, subs)) = handleResolvent resolvent ++ (handleOpposites ps)
--- 					where
--- 						resolvent = takeResolvent goal d fromGoal fromProgram subs
--- 						handleResolvent EmptyDisjunct = [subs]
--- 						handleResolvent newGoal       = map (++subs) (resolve program newGoal)
-
 myp = [Disjunct [Positive "p" [Const "11"]], Disjunct [Positive "p" [Var "X"], Negative "p" [Var "X"]]]
 myg = (Disjunct [Negative "p" [Var "X"]])
 
@@ -61,7 +46,8 @@ resolve program goal = processLevel $ nextLvl goal
 		processLevel :: [(Disjunct, [(Term, Term)])] -> [[(Term, Term)]]
 		processLevel []                         = []
 		processLevel ((EmptyDisjunct, subs):gs) = subs : processLevel gs
-		processLevel ((d, subs):gs) = processLevel gs ++ (map (compose . (++subs)) (processLevel ( nextLvl d)))
+		processLevel ((d, subs):gs) = restOfLvl ++ (map (++subs) $ processLevel $ nextLvl d) 
+			where restOfLvl = processLevel gs
 
 newGoals :: Program -> Disjunct -> [(Disjunct, [(Term, Term)])]
 newGoals program goal = resolved
@@ -70,4 +56,4 @@ newGoals program goal = resolved
 		resolved = takeResolvents $ concat $ map unifyOpposites opposites
 		unifyOpposites (d, lstOpp) = [(subs, d, p1, p2) | (p1, p2) <- lstOpp, let subs = p1 `unify` p2,
 																					subs /= Nothing]	
-		takeResolvents = map (\(Just (_, subs), d, p1, p2) -> (takeResolvent goal d p1 p2 subs, subs))
+		takeResolvents = map (\(s@(Just (_, subs)), d, p1, p2) -> (takeResolvent goal d p1 p2 s, subs))
