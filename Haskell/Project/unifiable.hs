@@ -7,7 +7,6 @@ type Substitution = (Term, Term)
 
 class Unifiable a where
 	unify :: a -> a -> Maybe (a, [Substitution])
-	--nextSubstitution :: a -> a -> Maybe [Substitution]
 
 instance Unifiable Term where
 	unify a b

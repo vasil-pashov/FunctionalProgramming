@@ -1,4 +1,4 @@
-module Intrepreter (resolve, program ,goal) where
+module Intrepreter (resolve, newGoals) where
 import Data.List (delete, nub)
 import Term
 import Predicate
@@ -36,7 +36,6 @@ equalSet x y
 	| length x /= length y = False
 	| otherwise            = all (`elem` y) x
 
-
 myp = [Disjunct [Positive "p" [Const "11"]], Disjunct [Positive "p" [Var "X"], Negative "p" [Var "X"]]]
 myg = (Disjunct [Negative "p" [Var "X"]])
 
@@ -48,7 +47,7 @@ resolve program goal = processLevel $ nextLvl goal
 		processLevel []                         = []
 		processLevel ((EmptyDisjunct, subs):gs) = subs:processLevel gs
 		--processLevel ((d, subs):gs) = restOfLvl ++ (map (compose . (++subs)) $ processLevel $ nextLvl d) 
-		processLevel ((d, subs):gs) = restOfLvl ++ [newSubs | s <- processLevel $ nextLvl d, let newSubs = compose . (++subs) $ s,
+		processLevel ((d, subs):gs) = restOfLvl ++ [newSubs | s <- processLevel $ nextLvl d, let newSubs = nub . compose . (++subs) $ s,
 																						 not (newSubs `hasEqualSet` restOfLvl)]
 			where restOfLvl = processLevel gs
 
