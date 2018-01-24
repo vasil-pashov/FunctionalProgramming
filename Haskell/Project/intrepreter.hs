@@ -1,3 +1,4 @@
+module Intrepreter (resolve, program ,goal) where
 import Data.List (delete, nub)
 import Term
 import Predicate
@@ -39,15 +40,20 @@ equalSet x y
 myp = [Disjunct [Positive "p" [Const "11"]], Disjunct [Positive "p" [Var "X"], Negative "p" [Var "X"]]]
 myg = (Disjunct [Negative "p" [Var "X"]])
 
---resolve :: Program -> Disjunct -> [[(Term, Term)]]
+resolve :: Program -> Disjunct -> [[(Term, Term)]]
 resolve program goal = processLevel $ nextLvl goal 
 	where
 		nextLvl = (program `newGoals`)
 		processLevel :: [(Disjunct, [(Term, Term)])] -> [[(Term, Term)]]
 		processLevel []                         = []
-		processLevel ((EmptyDisjunct, subs):gs) = subs : processLevel gs
-		processLevel ((d, subs):gs) = restOfLvl ++ (map (++subs) $ processLevel $ nextLvl d) 
+		processLevel ((EmptyDisjunct, subs):gs) = subs:processLevel gs
+		--processLevel ((d, subs):gs) = restOfLvl ++ (map (compose . (++subs)) $ processLevel $ nextLvl d) 
+		processLevel ((d, subs):gs) = restOfLvl ++ [newSubs | s <- processLevel $ nextLvl d, let newSubs = compose . (++subs) $ s,
+																						 not (newSubs `hasEqualSet` restOfLvl)]
 			where restOfLvl = processLevel gs
+
+hasEqualSet :: [(Term, Term)] -> [[(Term, Term)]] -> Bool
+hasEqualSet set = not . null . filter (set `equalSet`)
 
 newGoals :: Program -> Disjunct -> [(Disjunct, [(Term, Term)])]
 newGoals program goal = resolved

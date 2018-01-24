@@ -1,4 +1,7 @@
+import Intrepreter
+import Disjunct
 import Term
+import Predicate
 
 data Token = TVar String | TId String | Openning | Closing | Dot | Implication | Comma deriving (Show, Eq)
 
@@ -59,17 +62,64 @@ parseImplicationPreCond tokens@(TId name:t) = (term:args, next)
 parseTerm (TId name:Openning:t) = (PTerm name args, rest)
 	where (args, rest) = parseTermArgs t
 
-parseTermArgs tokens = case tokens of
-						Closing:t              -> ([], t)
-						(TVar name:_)          -> ((PVar name):args, r)
-						(TId name:Openning:_) -> (term:args, r1)
-						(TId name:_)           -> (PConst name:args, r) 
-						where
-							(args, r)  = parseTermArgs $ tail tokens
-							(term, r1) = parseTerm tokens
+parseTermArgs tokens = parseTermArgs' tokens []
+	where
+		parseTermArgs' tokens args = case tokens of
+										(Closing:t)            -> (reverse args, t)
+										(TVar name:t)          -> parseTermArgs' t (PVar name:args)
+										(TId name:Openning:t)  -> parseTermArgs' next (term:args)
+										(TId name:t)           -> parseTermArgs' t (PConst name:args) 
+										where (term, next) = parseTerm tokens
+
+structuredTokensToProgram = map parseStruct
+	where
+		parseStruct fact@(PFact _) = factToDisjunct fact
+		parseStruct impl@(PImpl _ _) = implicationToDisjunct impl
+
+
+
+factToDisjunct (PFact term) = (Disjunct [termToPredicate Positive term])
+
+implicationToDisjunct (PImpl res preConds) = (Disjunct ((termToPredicate Positive res):preCondPred))
+	where preCondPred = map (termToPredicate Negative) preConds
+
+queryToDisjunct query = (Disjunct $ map (termToPredicate Negative) structured)
+	where structured = structureTokens $ tokenize $ removeWhitespace query
+
+termToPredicate sign (PTerm name args) = (sign name (parseArgs args))
+	where
+		parseArgs [] = []	
+		parseArgs ((PVar name):t)       = (Var name):parseArgs t
+		parseArgs ((PConst name):t)     = (Const name):parseArgs t
+		parseArgs ((PTerm name args):t) = (Function name (parseArgs args)):parseArgs t
 
 main = do
-		file <- readFile "test.pl"
-		print $ removeWhitespace file
-		let tokenized = (tokenize $ removeWhitespace file)
-		print tokenized
+		putStrLn "Enter file to consult"
+		filename <- getLine
+		file <- readFile filename
+		-- print $ removeWhitespace file
+		let program = structuredTokensToProgram $ structureTokens $ (tokenize $ removeWhitespace file)
+		mapM_ print program
+		readQuery program
+		
+readQuery program = do
+				putStr "?- "
+				query <- getLine
+				if query == ":q"
+					then return "Exiting"
+					else do
+							let
+								parsedQ = queryToDisjunct query
+								resolved = resolve program parsedQ
+							printResolved resolved	
+							readQuery program
+
+printResolved []   = putStrLn (show False)
+printResolved [[]] = putStrLn (show True)
+printResolved sth  = do
+						putStr $ show (head sth)
+						next <- getLine
+						if null next
+							then printResolved $ tail sth
+							else return ()
+
