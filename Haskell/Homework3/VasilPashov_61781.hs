@@ -1,5 +1,4 @@
 --Task1
-
 --lower left, upper right
 type Rect  = (Int, Int, Int, Int)
 type Point =  (Int, Int)
@@ -7,11 +6,11 @@ type Point =  (Int, Int)
 rectNodes :: Rect -> [Point]
 rectNodes (lx, ly, ux, uy) = [(lx, ly), (ux, uy), (ux, ly), (lx, uy)]
 
-between :: Int -> Int -> Int -> Bool
-between min max x = x >= min && x <= max
+between :: Int -> (Int, Int) -> Bool
+between x (lower, upper) = x >= lower && x <= upper
 
 inRect :: Point -> Rect -> Bool
-inRect (x, y) (lx, ly, ux, uy) = between lx ux x && between ly uy y
+inRect (x, y) (lx, ly, ux, uy) = x `between` (lx, ux) && y `between` (ly, uy)
 
 --r1 has node that is in r2
 rectIntersect :: Rect -> Rect -> Bool
@@ -70,7 +69,7 @@ check funs values = foldr maxFun 0 combs
 				funsLen  = length funsComb
 
 --Task 3
-getCol ::Int -> [[t]] -> [t]
+getCol :: Int -> [[t]] -> [t]
 getCol idx m = map (!!idx) m
 
 findOptimal :: (Eq t, Ord t) => (t -> t -> Bool) -> [t] -> [(Int, t)]
@@ -87,10 +86,64 @@ transpose :: [[t]] -> [[t]]
 transpose ([]:_) = []
 transpose m = (map head m) : transpose (map tail m)
 
---hasSaddle :: (Ord t, Eq t) => [[t]] -> Bool
---hasSaddle m = hasSaddle' m or hasSaddle' (transpose m)
---	where hasSaddle' m = any rowHasSaddle m
---		where rowHasSaddle row = any maxIncol mins
---			where 
---				mins = findOptimal (<) row
---				maxIncol (idx, el) = el == (maximum $ getCol idx m)
+delIdx :: Int -> [t] -> [t]
+delIdx _ [] = []
+delIdx 0 (x:xs) = xs
+delIdx idx (x:xs) = x:(delIdx (idx + 1) xs)
+
+allSaddles :: (Ord t, Eq t) => [[t]] -> [(Int, Int)]
+allSaddles matrix = allSaddles' matrix 0
+	where
+		allSaddles' [] _ = []
+		allSaddles' (x:xs) rowIdx = (rowSaddles (<=) rowMins) ++
+									 (rowSaddles (>=) rowMaxes) ++
+									  (allSaddles' xs (rowIdx + 1))
+			where
+				rowMaxes       = findOptimal (>=) x
+				rowMins        = findOptimal (<=) x
+				rowSaddles op rowOp = [(rowIdx, colIdx) | (colIdx, val) <- rowOp,
+															let col = delIdx rowIdx (getCol colIdx matrix),
+															all (`op` val) col]
+
+hasSaddle :: (Ord t, Eq t) => [[t]] -> Bool
+hasSaddle = not . null . allSaddles
+--Task 4
+
+asSumOfTwo :: Int -> [Int] -> Int
+asSumOfTwo n lst = length [() | a <- lst, b <- lst, a + b == n]
+
+isPrime :: Int -> Bool
+isPrime 1 = False
+isPrime n = null $ filter ((==0) . (n `mod`)) [x | x <- [2..(round $ sqrt $ fromIntegral n)]]
+
+repr = repr' 1 []
+	where
+		repr' n primes
+			| isPrime n = combs:(repr' next (n:primes))
+			| otherwise = combs:(repr' next primes)
+			where
+				combs = asSumOfTwo n primes
+				next = n + 1
+
+-- Task 5
+class Automaton t where
+	match :: t -> String -> Bool
+
+data DFA = DFA Int [Int] (Int -> Char -> Int)
+
+instance Automaton DFA where
+	match (DFA statsCnt finals delta) input = match' 0 input
+		where
+			match' currentState ""     = currentState `elem` finals
+			match' (-1) _              = False
+			match' currentState (x:xs) = match' (delta currentState x) xs
+
+data NFA = NFA Int [Int] (Int -> Char -> [Int])
+
+instance Automaton NFA where 
+	match automaton@(NFA statesCnt finals delta) input = match' 0 input
+		where
+			match' currentState ""     = currentState `elem` finals
+			match' (-1) _              = False
+			match' currentState (x:xs) = any (`match'` xs) nextStates
+				where nextStates = (delta currentState x)

@@ -1,8 +1,10 @@
-p(z).
-p(X) :- q(X).
-p(u).
-p(v).
+p(x, y).
+p(X, Y) :- q(X), z(Y).
+
+q(x).
 q(y).
 
+z(g).
+
 c(x).
-c(X) :- c(X).
+c(f(X)) :- c(X).

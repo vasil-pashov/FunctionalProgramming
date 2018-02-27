@@ -1,6 +1,8 @@
-module Intrepreter (resolve, newGoals) where
-import Data.List (delete, nub)
+module Intrepreter where
+import Data.List (delete, nub, intersect)
+import Control.Arrow
 import Term
+import Data.Maybe
 import Predicate
 import Disjunct
 import Unifiable
@@ -8,57 +10,57 @@ import Substitutable
 
 type Program = [Disjunct]
 
-program::Program
--- program = [
--- 	(Disjunct [Positive "p" [Const "10"]]),
--- 	(Disjunct [Positive "p" [Const "11"]]),
--- 	(Disjunct [Positive "p" [Var "X"], Negative "q" [Var "X"]]),
--- 	(Disjunct [Positive "q" [Const "15"]])]
-program = [
-	(Disjunct [Positive "p" [Const "1", Const "2"]]),
-	(Disjunct [Positive "p" [Var "X", Var "Y"], Negative "q" [Var "X"], Negative "r" [Var "Y"]]),
-	(Disjunct [Positive "q" [Const "10"]]),
-	(Disjunct [Positive "q" [Var "YY"], Negative "t" [Var "YY"], Negative "r" [Const "11"]]),
-	(Disjunct [Positive "r" [Const "11"]]),
-	(Disjunct [Positive "t" [Const "5"]])]
-
-goal::Disjunct
--- goal = (Disjunct [Negative "p" [Var "X"]])
-goal = (Disjunct [Negative "p" [Var "X", Var "Y"]])
-	 
-t = (Function "f" [(Const "x"), (Var "X"), (Const "z")])
-t1 = (Function "f" [(Const "x"), (Var "Z"), (Var "X")]) 
-t2 = (Function "f" [(Const "x"), (Const "z"), (Var "X")]) 
------------------------------------------------------------------------------
 
 equalSet :: Eq t => [t] -> [t] -> Bool
 equalSet x y
-	| length x /= length y = False
-	| otherwise            = all (`elem` y) x
-
-myp = [Disjunct [Positive "p" [Const "11"]], Disjunct [Positive "p" [Var "X"], Negative "p" [Var "X"]]]
-myg = (Disjunct [Negative "p" [Var "X"]])
+  | length x /= length y = False
+  | otherwise            = all (`elem` y) x
 
 resolve :: Program -> Disjunct -> [[(Term, Term)]]
-resolve program goal = processLevel $ nextLvl goal 
-	where
-		nextLvl = (program `newGoals`)
-		processLevel :: [(Disjunct, [(Term, Term)])] -> [[(Term, Term)]]
-		processLevel []                         = []
-		processLevel ((EmptyDisjunct, subs):gs) = subs:processLevel gs
-		--processLevel ((d, subs):gs) = restOfLvl ++ (map (compose . (++subs)) $ processLevel $ nextLvl d) 
-		processLevel ((d, subs):gs) = restOfLvl ++ [newSubs | s <- processLevel $ nextLvl d, let newSubs = nub . compose . (++subs) $ s,
-																						 not (newSubs `hasEqualSet` restOfLvl)]
-			where restOfLvl = processLevel gs
+resolve program goal = processLevel $ newGoals [] program goal 
+  where
+    processLevel :: [(Disjunct, [(Term, Term)])] -> [[(Term, Term)]]
+    processLevel []                         = []
+    processLevel ((EmptyDisjunct, subs):gs) = subs:processLevel gs
+    processLevel ((d, subs):gs) = restOfLvl ++ [newSubs | s <- processLevel $ newGoals (map fst subs) program d,
+                                                        let newSubs = subs ++ s,
+                                                        not (newSubs `hasEqualSet` restOfLvl)]
+      where restOfLvl = processLevel gs
 
 hasEqualSet :: [(Term, Term)] -> [[(Term, Term)]] -> Bool
-hasEqualSet set = not . null . filter (set `equalSet`)
+hasEqualSet set = any (set `equalSet`)
 
-newGoals :: Program -> Disjunct -> [(Disjunct, [(Term, Term)])]
-newGoals program goal = resolved
-	where
-		opposites = zip program (map (goal `pairOpposites`) program)
-		resolved = takeResolvents $ concat $ map unifyOpposites opposites
-		unifyOpposites (d, lstOpp) = [(subs, d, p1, p2) | (p1, p2) <- lstOpp, let subs = p1 `unify` p2,
-																					subs /= Nothing]	
-		takeResolvents = map (\(s@(Just (_, subs)), d, p1, p2) -> (takeResolvent goal d p1 p2 s, subs))
+newGoals :: [Term] -> Program -> Disjunct -> [(Disjunct, [(Term, Term)])]
+newGoals used program goalInit = map (Control.Arrow.second (updates ++)) resolved
+  where
+    (goal, updates) = prepareGoal used program goalInit
+    opposites = zip program (map (goal `pairOpposites`) program)
+    resolved = takeResolvents $ concatMap unifyOpposites opposites
+    unifyOpposites (d, lstOpp) = [(subs, d, p1, p2) | (p1, p2) <- lstOpp,
+                                                      let subs = p1 `unify` p2,
+                                                      Data.Maybe.isJust subs]  
+    takeResolvents = map (\(s@(Just (_, subs)), d, p1, p2) -> (takeResolvent goal d p1 p2 s, subs))
+
+
+prepareGoal :: [Term] -> Program -> Disjunct -> (Disjunct, [(Term, Term)])
+prepareGoal usedVars program goal = foldr update (goal, []) toChange
+  where disjVars (Disjunct p) = concatMap getVars p
+        programVars = concatMap disjVars program
+        used = map (\(Var name) -> name) usedVars
+        goalVars = disjVars goal
+        forbidenNames =  used ++ programVars
+        toChange = goalVars `intersect` (programVars ++ used)
+        newVarName name goal = if name `notElem` forbidenNames && name `notElem` disjVars goal
+                               then name
+                               else newVarName (nextName name) goal
+        update name (d, subs) = (substitute oldVar newVar d, (oldVar, newVar):subs)
+          where oldVar = Var name
+                newVar = Var (newVarName name d)
+
+nextName :: String -> String
+nextName ('Z':t) = 'A':'Z':t
+nextName (h:t)   = succ h:t
+
+p = [Disjunct [Negative "c" [Const "x"]],
+    Disjunct [Negative "c" [Var "X"], Positive "c" [Function "f" [Var "X"]]]]
+g = Disjunct [Negative "c" [Var "X"]]
